@@ -12,14 +12,18 @@ import (
 
 func main() {
 	token := flag.String("token", "", "token")
+	dbPath := flag.String("db", "", "db")
 	flag.Parse()
 
 	if *token == "" {
-		log.Fatal("Token is empty")
+		log.Fatal("token is empty")
+	}
+	if *dbPath == "" {
+		log.Fatal("db is empty")
 	}
 
 	log.Print("Starting")
-	b, err := bot.New(*token)
+	b, err := bot.New(*token, *dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,5 +38,8 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
 	log.Print("Stopping")
-	b.Close()
+	err = b.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
