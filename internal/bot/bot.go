@@ -12,7 +12,7 @@ import (
 )
 
 // 1 in 1000
-const respProbThreshold = math.MaxUint64 / 1000
+const respProbThreshold uint64 = math.MaxUint64 / 1000
 
 const dbGCInterval = 5 * time.Minute
 const dbGCDiscardRatio = 0.5
