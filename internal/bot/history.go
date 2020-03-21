@@ -19,13 +19,13 @@ func (b *Bot) ProcessHistory(channelID string) error {
 		if len(msgs) == 0 {
 			break
 		}
-		for _, msg := range msgs {
+		for _, m := range msgs {
 			// Ignore my own messages.
 			if m.Author.ID == b.session.State.User.ID {
 				continue
 			}
 
-			content, err := msg.ContentWithMoreMentionsReplaced(b.session)
+			content, err := m.ContentWithMoreMentionsReplaced(b.session)
 			if err != nil {
 				return err
 			}
