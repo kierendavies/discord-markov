@@ -121,7 +121,7 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 		_, err = b.session.ChannelMessageSend(m.ChannelID, "Sorry, I can't process direct messages")
 		if err != nil {
-			log.Print(err)
+			log.Printf("Error: %+v", err)
 		}
 
 		return
@@ -134,13 +134,13 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 	guild, err := b.session.Guild(m.GuildID)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Error: %+v", err)
 		return
 	}
 
 	channel, err := b.session.Channel(m.ChannelID)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Error: %+v", err)
 		return
 	}
 
@@ -153,13 +153,13 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 	content, err := m.ContentWithMoreMentionsReplaced(b.session)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Error: %+v", err)
 		return
 	}
 
 	err = b.registerMessage(m.GuildID, content)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Error: %+v", err)
 		return
 	}
 
@@ -188,13 +188,13 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 		resp, err := b.generateMessage(m.GuildID)
 		if err != nil {
-			log.Print(err)
+			log.Printf("Error: %+v", err)
 			return
 		}
 
 		_, err = b.session.ChannelMessageSend(m.ChannelID, resp)
 		if err != nil {
-			log.Print(err)
+			log.Printf("Error: %+v", err)
 			return
 		}
 	}
