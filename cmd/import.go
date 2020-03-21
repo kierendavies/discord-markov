@@ -3,9 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/kierendavies/discord-markov/internal/bot"
 )
@@ -13,6 +10,7 @@ import (
 func main() {
 	token := flag.String("token", "", "token")
 	dbPath := flag.String("db", "", "db")
+	channelID := flag.String("channelID", "", "channelID")
 	flag.Parse()
 
 	if *token == "" {
@@ -20,6 +18,9 @@ func main() {
 	}
 	if *dbPath == "" {
 		log.Fatal("db is empty")
+	}
+	if *channelID == "" {
+		log.Fatal("channelID is empty")
 	}
 
 	log.Print("Starting")
@@ -32,14 +33,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	b.Listen()
+	defer b.Close()
 	log.Print("Connected")
 
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
+	err = b.ProcessHistory(*channelID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Print("Stopping")
-	err = b.Close()
+	err = s.Close()
 	if err != nil {
 		log.Fatal(err)
 	}

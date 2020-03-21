@@ -43,14 +43,6 @@ func New(token string, dbPath string) (*Bot, error) {
 		waitGroup: &sync.WaitGroup{},
 	}
 
-	s.AddHandler(func(s2 *discordgo.Session, m *discordgo.MessageCreate) {
-		if s2 != b.session {
-			log.Fatal("Session seems to have changed")
-		}
-
-		b.handleMessageCreate(m)
-	})
-
 	return b, nil
 }
 
@@ -101,6 +93,18 @@ func (b *Bot) Close() error {
 		return dbErr
 	}
 	return sErr
+}
+
+// Listen starts the bot processing and responding to new messages. The return
+// value is a function which, when called, stops the listening.
+func (b *Bot) Listen() func() {
+	return b.session.AddHandler(func(s2 *discordgo.Session, m *discordgo.MessageCreate) {
+		if s2 != b.session {
+			log.Fatal("Session seems to have changed")
+		}
+
+		b.handleMessageCreate(m)
+	})
 }
 
 func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
