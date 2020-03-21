@@ -42,7 +42,7 @@ func main() {
 	}
 
 	log.Print("Stopping")
-	err = s.Close()
+	err = b.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
