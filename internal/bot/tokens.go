@@ -7,7 +7,7 @@ import (
 
 const (
 	chainLenSave = 5
-	chainLenGen  = 2
+	chainLenGen  = 3
 )
 const tokenSeparator = " "
 const (
