@@ -147,7 +147,13 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 		m.Author.Discriminator,
 	)
 
-	err = b.registerMessage(m.GuildID, m.Content)
+	content, err := m.ContentWithMoreMentionsReplaced(b.session)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	err = b.registerMessage(m.GuildID, content)
 	if err != nil {
 		log.Print(err)
 		return
