@@ -53,6 +53,55 @@ func New(token string, dbPath string) (*Bot, error) {
 	return b, nil
 }
 
+// Open opens the database and creates a websocket connection to Discord.
+func (b *Bot) Open() error {
+	b.stopCh = make(chan struct{})
+
+	db, err := badger.Open(b.dbOpts)
+	if err != nil {
+		b.session.Close()
+		return err
+	}
+	b.db = db
+
+	b.dbGCTicker = time.NewTicker(dbGCInterval)
+	b.waitGroup.Add(1)
+	go func() {
+		defer b.waitGroup.Done()
+		for {
+			select {
+			case <-b.dbGCTicker.C:
+				log.Print("Running database garbage collection")
+				b.db.RunValueLogGC(dbGCDiscardRatio)
+			case <-b.stopCh:
+				return
+			}
+		}
+	}()
+
+	err = b.session.Open()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Close closes the database and the websocket connection to Discord.
+func (b *Bot) Close() error {
+	b.dbGCTicker.Stop()
+	close(b.stopCh)
+	b.waitGroup.Wait()
+
+	sErr := b.session.Close()
+	dbErr := b.db.Close()
+	// The dbErr is more important so return that one if it exists.
+	if dbErr != nil {
+		return dbErr
+	}
+	return sErr
+}
+
 func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 	var err error
 
@@ -134,55 +183,6 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 			return
 		}
 	}
-}
-
-// Open opens the database and creates a websocket connection to Discord.
-func (b *Bot) Open() error {
-	b.stopCh = make(chan struct{})
-
-	db, err := badger.Open(b.dbOpts)
-	if err != nil {
-		b.session.Close()
-		return err
-	}
-	b.db = db
-
-	b.dbGCTicker = time.NewTicker(dbGCInterval)
-	b.waitGroup.Add(1)
-	go func() {
-		defer b.waitGroup.Done()
-		for {
-			select {
-			case <-b.dbGCTicker.C:
-				log.Print("Running database garbage collection")
-				b.db.RunValueLogGC(dbGCDiscardRatio)
-			case <-b.stopCh:
-				return
-			}
-		}
-	}()
-
-	err = b.session.Open()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Close closes the database and the websocket connection to Discord.
-func (b *Bot) Close() error {
-	b.dbGCTicker.Stop()
-	close(b.stopCh)
-	b.waitGroup.Wait()
-
-	sErr := b.session.Close()
-	dbErr := b.db.Close()
-	// The dbErr is more important so return that one if it exists.
-	if dbErr != nil {
-		return dbErr
-	}
-	return sErr
 }
 
 func (b *Bot) registerMessage(guildID, msg string) error {
