@@ -4,6 +4,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,7 +176,11 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 			channel.Name,
 		)
 
-		resp := b.generateMessage(m.GuildID)
+		resp, err := b.generateMessage(m.GuildID)
+		if err != nil {
+			log.Print(err)
+			return
+		}
 
 		_, err = b.session.ChannelMessageSend(m.ChannelID, resp)
 		if err != nil {
@@ -186,9 +191,9 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 }
 
 func (b *Bot) registerMessage(guildID, msg string) error {
-	tokenSeqs := tokenSequences(msg)
-	keys := make([]string, 0, len(tokenSeqs))
-	for _, ts := range tokenSeqs {
+	chains := tokenChains(msg)
+	keys := make([]string, 0, len(chains))
+	for _, ts := range chains {
 		keys = append(keys, guildID+":"+ts)
 	}
 	err := b.incrementCounts(keys)
@@ -199,6 +204,24 @@ func (b *Bot) registerMessage(guildID, msg string) error {
 	return nil
 }
 
-func (b *Bot) generateMessage(guildID string) string {
-	return "Beep boop"
+func (b *Bot) generateMessage(guildID string) (string, error) {
+	tokens := make([]string, 0)
+	tokens = append(tokens, stx)
+
+	for tokens[len(tokens)-1] != etx {
+		chainLen := chainLenGen
+		if chainLen > len(tokens) {
+			chainLen = len(tokens)
+		}
+		chain := strings.Join(tokens[len(tokens)-chainLen:len(tokens)], tokenSeparator)
+
+		counts, err := b.getCounts(guildID + ":" + chain)
+		if err != nil {
+			return "", err
+		}
+		nextToken := weightedChoice(counts)
+		tokens = append(tokens, nextToken)
+	}
+
+	return strings.Join(tokens[1:len(tokens)-1], tokenSeparator), nil
 }

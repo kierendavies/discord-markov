@@ -19,10 +19,6 @@ func bytesToUint64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
 }
 
-func addBytes(b1, b2 []byte) []byte {
-	return uint64ToBytes(bytesToUint64(b1) + bytesToUint64(b2))
-}
-
 func (b *Bot) incrementCounts(keys []string) error {
 	txn := b.db.NewTransaction(true)
 	defer txn.Discard()
@@ -72,8 +68,15 @@ func (b *Bot) getCounts(prefix string) (map[string]uint64, error) {
 
 		for it.Seek(prefixB); it.ValidForPrefix(prefixB); it.Next() {
 			item := it.Item()
-			tokens := strings.Split(string(item.Key()), tokenSeparator)
+			key := string(item.Key())
+			tokens := strings.Split(key, tokenSeparator)
 			lastToken := tokens[len(tokens)-1]
+
+			// Only consider keys which consist of the prefix plus one extra token.
+			if len(prefix)+len(lastToken)+1 != len(key) {
+				continue
+			}
+
 			err := item.Value(func(v []byte) error {
 				counts[lastToken] = bytesToUint64(v)
 				return nil

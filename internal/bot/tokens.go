@@ -1,6 +1,9 @@
 package bot
 
-import "strings"
+import (
+	"math/rand"
+	"strings"
+)
 
 const (
 	chainLenSave = 5
@@ -12,7 +15,7 @@ const (
 	etx = "\x03"
 )
 
-func tokenSequences(msg string) []string {
+func tokenChains(msg string) []string {
 	tokens := strings.Split(msg, tokenSeparator)
 	// Prepend start-of-text
 	tokens = append([]string{stx}, tokens...)
@@ -33,4 +36,29 @@ func tokenSequences(msg string) []string {
 	}
 
 	return tokenSeqs
+}
+
+func weightedChoice(choices map[string]uint64) string {
+	if len(choices) == 0 {
+		panic("choices is empty")
+	}
+
+	keys := make([]string, 0, len(choices))
+	cumsums := make([]uint64, 0, len(choices))
+	var sum uint64 = 0
+
+	for k, v := range choices {
+		keys = append(keys, k)
+		sum += v
+		cumsums = append(cumsums, sum)
+	}
+
+	r := uint64(rand.Int63n(int64(sum)))
+	for i, cs := range cumsums {
+		if r < cs {
+			return keys[i]
+		}
+	}
+
+	panic("something went wrong with weightedChoice")
 }
