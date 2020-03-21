@@ -139,7 +139,7 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Printf("Received message from %s/%s/%s#%s",
+	log.Printf("Received message from %s/#%s/%s#%s",
 		guild.Name,
 		channel.Name,
 		m.Author.Username,
@@ -170,7 +170,7 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 	}
 
 	if shouldRespond {
-		log.Printf("Sending message to %s/%s",
+		log.Printf("Sending message to %s/#%s",
 			guild.Name,
 			channel.Name,
 		)
