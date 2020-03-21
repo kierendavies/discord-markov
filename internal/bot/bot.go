@@ -186,6 +186,16 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 }
 
 func (b *Bot) registerMessage(guildID, msg string) error {
+	tokenSeqs := tokenSequences(msg)
+	keys := make([]string, 0, len(tokenSeqs))
+	for _, ts := range tokenSeqs {
+		keys = append(keys, guildID+":"+ts)
+	}
+	err := b.incrementCounts(keys)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
