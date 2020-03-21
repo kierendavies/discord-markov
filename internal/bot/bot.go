@@ -2,10 +2,15 @@ package bot
 
 import (
 	"log"
+	"math"
+	"math/rand"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/dgraph-io/badger/v2"
 )
+
+// 1 in 1000
+const respProbThreshold = math.MaxUint64 / 1000
 
 // Bot represents a Markov bot with a Discord session and a database.
 type Bot struct {
@@ -37,8 +42,27 @@ func New(token string, dbPath string) (*Bot, error) {
 }
 
 func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
+	var err error
 
+	// Ignore my own messages.
 	if m.Author.ID == b.session.State.User.ID {
+		return
+	}
+
+	// Politely reject direct messages.
+	if m.GuildID == "" {
+		log.Printf("Ignoring DM from %s#%s", m.Author.Username, m.Author.Discriminator)
+
+		_, err = b.session.ChannelMessageSend(m.ChannelID, "Sorry, I can't process direct messages")
+		if err != nil {
+			log.Print(err)
+		}
+
+		return
+	}
+
+	// Ignore messages with no text content, e.g. just images.
+	if m.Content == "" {
 		return
 	}
 
@@ -54,15 +78,47 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Printf("Received message: guild <%s>, channel <%s>, user <%s>",
+	log.Printf("Received message from %s/%s/%s#%s",
 		guild.Name,
 		channel.Name,
 		m.Author.Username,
+		m.Author.Discriminator,
 	)
 
+	err = b.registerMessage(m.GuildID, m.Content)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	shouldRespond := false
+
+	// Respond to mentions.
 	for _, u := range m.Mentions {
 		if u.ID == b.session.State.User.ID {
-			b.session.ChannelMessageSend(m.ChannelID, "Hi "+m.Author.Mention())
+			shouldRespond = true
+			break
+		}
+	}
+
+	// Randomly respond sometimes.
+	if !shouldRespond {
+		if rand.Uint64() <= respProbThreshold {
+			shouldRespond = true
+		}
+	}
+
+	if shouldRespond {
+		log.Printf("Sending message to %s/%s",
+			guild.Name,
+			channel.Name,
+		)
+
+		resp := b.generateMessage(m.GuildID)
+
+		_, err = b.session.ChannelMessageSend(m.ChannelID, resp)
+		if err != nil {
+			log.Print(err)
 			return
 		}
 	}
@@ -94,4 +150,12 @@ func (b *Bot) Close() error {
 		return dbErr
 	}
 	return sErr
+}
+
+func (b *Bot) registerMessage(guildID, msg string) error {
+	return nil
+}
+
+func (b *Bot) generateMessage(guildID string) string {
+	return "Beep boop"
 }
