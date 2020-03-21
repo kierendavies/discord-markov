@@ -25,11 +25,20 @@ func (b *Bot) ProcessHistory(channelID string) error {
 				continue
 			}
 
+			// Ignore messages with no text content, e.g. just images.
+			if m.Content == "" {
+				continue
+			}
+
 			content, err := m.ContentWithMoreMentionsReplaced(b.session)
 			if err != nil {
 				return err
 			}
-			b.registerMessage(channel.GuildID, content)
+
+			err = b.registerMessage(channel.GuildID, content)
+			if err != nil {
+				log.Printf("Error: %+v", err)
+			}
 		}
 
 		msgCount += len(msgs)
