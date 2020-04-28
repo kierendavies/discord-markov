@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"encoding/json"
 	"log"
 	"math"
 	"math/rand"
@@ -12,7 +13,7 @@ import (
 	"github.com/dgraph-io/badger/v2"
 )
 
-// 1 in 1000
+// Scaled probability of responding to a message in which the bot is not mentioned.
 const respProbThreshold uint64 = math.MaxUint64 / 1000
 
 const dbGCInterval = 5 * time.Minute
@@ -98,22 +99,36 @@ func (b *Bot) Close() error {
 // Listen starts the bot processing and responding to new messages. The return
 // value is a function which, when called, stops the listening.
 func (b *Bot) Listen() func() {
-	return b.session.AddHandler(func(s2 *discordgo.Session, m *discordgo.MessageCreate) {
-		if s2 != b.session {
+	// rmMessageCreate := b.session.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// 	if s != b.session {
+	// 		log.Fatal("Session seems to have changed")
+	// 	}
+
+	// 	err := b.handleMessageCreate(m)
+	// 	if err != nil {
+	// 		log.Printf("Error: %+v", err)
+	// 	}
+	// })
+
+	rmMessageReactionAdd := b.session.AddHandler(func(s *discordgo.Session, r *discordgo.MessageReactionAdd) {
+		if s != b.session {
 			log.Fatal("Session seems to have changed")
 		}
 
-		b.handleMessageCreate(m)
+		err := b.handleMessageReactionAdd(r)
+		if err != nil {
+			log.Printf("Error: %+v", err)
+		}
 	})
+
+	return func() {
+		// rmMessageCreate()
+		rmMessageReactionAdd()
+	}
 }
 
-func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
+func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) error {
 	var err error
-
-	// Ignore my own messages.
-	if m.Author.ID == b.session.State.User.ID {
-		return
-	}
 
 	// Politely reject direct messages.
 	if m.GuildID == "" {
@@ -121,27 +136,20 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 		_, err = b.session.ChannelMessageSend(m.ChannelID, "Sorry, I can't process direct messages")
 		if err != nil {
-			log.Printf("Error: %+v", err)
+			return err
 		}
 
-		return
-	}
-
-	// Ignore messages with no text content, e.g. just images.
-	if m.Content == "" {
-		return
+		return nil
 	}
 
 	guild, err := b.session.Guild(m.GuildID)
 	if err != nil {
-		log.Printf("Error: %+v", err)
-		return
+		return err
 	}
 
 	channel, err := b.session.Channel(m.ChannelID)
 	if err != nil {
-		log.Printf("Error: %+v", err)
-		return
+		return err
 	}
 
 	log.Printf("Received message from %s/#%s/%s#%s",
@@ -153,51 +161,67 @@ func (b *Bot) handleMessageCreate(m *discordgo.MessageCreate) {
 
 	content, err := m.ContentWithMoreMentionsReplaced(b.session)
 	if err != nil {
-		log.Printf("Error: %+v", err)
-		return
+		return err
 	}
 
-	err = b.registerMessage(m.GuildID, content)
+	// If the message is not my own, register it and possibly respond.
+	if m.Author.ID != b.session.State.User.ID {
+		// Only register messages with text content.
+		if content != "" {
+			err = b.registerMessage(m.GuildID, content)
+			if err != nil {
+				return err
+			}
+		}
+
+		shouldRespond := false
+
+		// Respond to mentions.
+		for _, u := range m.Mentions {
+			if u.ID == b.session.State.User.ID {
+				shouldRespond = true
+				break
+			}
+		}
+
+		// Randomly respond sometimes.
+		if !shouldRespond {
+			if rand.Uint64() <= respProbThreshold {
+				shouldRespond = true
+			}
+		}
+
+		if shouldRespond {
+			log.Printf("Sending message to %s/#%s",
+				guild.Name,
+				channel.Name,
+			)
+
+			resp, err := b.generateMessage(m.GuildID)
+			if err != nil {
+				return err
+			}
+
+			_, err = b.session.ChannelMessageSend(m.ChannelID, resp)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// TODO bayesian reactions
+
+	return nil
+}
+
+func (b *Bot) handleMessageReactionAdd(r *discordgo.MessageReactionAdd) error {
+	jb, err := json.MarshalIndent(r, "", "    ")
 	if err != nil {
-		log.Printf("Error: %+v", err)
-		return
+		return err
 	}
+	log.Print(string(jb))
 
-	shouldRespond := false
-
-	// Respond to mentions.
-	for _, u := range m.Mentions {
-		if u.ID == b.session.State.User.ID {
-			shouldRespond = true
-			break
-		}
-	}
-
-	// Randomly respond sometimes.
-	if !shouldRespond {
-		if rand.Uint64() <= respProbThreshold {
-			shouldRespond = true
-		}
-	}
-
-	if shouldRespond {
-		log.Printf("Sending message to %s/#%s",
-			guild.Name,
-			channel.Name,
-		)
-
-		resp, err := b.generateMessage(m.GuildID)
-		if err != nil {
-			log.Printf("Error: %+v", err)
-			return
-		}
-
-		_, err = b.session.ChannelMessageSend(m.ChannelID, resp)
-		if err != nil {
-			log.Printf("Error: %+v", err)
-			return
-		}
-	}
+	return nil
 }
 
 func (b *Bot) registerMessage(guildID, msg string) error {
